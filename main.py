@@ -6,6 +6,7 @@ import time
 import pyaudio
 import wave
 import keyboard
+import pygame
 
 # Load environment variables from .env file
 load_dotenv()
@@ -95,7 +96,6 @@ def text_to_speech(text, voice="coral", instructions=None, output_file="speech.m
         model="gpt-4o-mini-tts",
         voice=voice,
         input=text,
-        instructions=instructions,
     ) as response:
         response.stream_to_file(speech_file_path)
     
@@ -172,6 +172,23 @@ def ask_and_speak(question, system_prompt="You are a helpful assistant.", voice=
     
     return response, speech_file
 
+def play_audio(file_path):
+    """
+    Play an audio file.
+    
+    Args:
+        file_path (str): Path to the audio file to play
+    """
+    pygame.mixer.init()
+    pygame.mixer.music.load(file_path)
+    pygame.mixer.music.play()
+    
+    # Wait for the audio to finish playing
+    while pygame.mixer.music.get_busy():
+        pygame.time.Clock().tick(10)
+    
+    pygame.mixer.quit()
+
 def main():
     """Interactive voice conversation loop."""
     print("Welcome to the Voice Assistant!")
@@ -217,7 +234,10 @@ def main():
                 conversation_history.append({"role": "assistant", "content": response})
                 
                 print(f"\nResponse saved to: {speech_file}")
-                print("You can play this file to hear the response.")
+                print("Playing response...")
+                
+                # Play the audio response
+                play_audio(str(speech_file))
                 
             except Exception as e:
                 print(f"An error occurred: {str(e)}")
