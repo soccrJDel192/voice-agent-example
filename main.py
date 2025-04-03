@@ -2,6 +2,7 @@ from pathlib import Path
 from openai import OpenAI
 from dotenv import load_dotenv
 import os
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -44,6 +45,27 @@ def text_to_speech(text, voice="coral", instructions=None, output_file="speech.m
         response.stream_to_file(speech_file_path)
     
     return speech_file_path
+
+def speech_to_text(audio_file_path, model="gpt-4o-transcribe"):
+    """
+    Convert speech from an audio file to text using OpenAI's API.
+    
+    Args:
+        audio_file_path (str): Path to the audio file to transcribe
+        model (str): The model to use for transcription (default: "gpt-4o-transcribe")
+    
+    Returns:
+        str: The transcribed text
+    """
+    client = initialize_openai_client()
+    
+    with open(audio_file_path, "rb") as audio_file:
+        transcription = client.audio.transcriptions.create(
+            model=model,
+            file=audio_file
+        )
+    
+    return transcription.text
 
 def chat_completion(messages, model="gpt-4o"):
     """
@@ -95,71 +117,61 @@ def ask_and_speak(question, system_prompt="You are a helpful assistant.", voice=
     
     return response, speech_file
 
-def interactive_chat_and_speak(system_prompt="You are a helpful assistant.", voice="coral"):
-    """
-    Start an interactive chat session where each AI response is converted to speech.
-    
-    Args:
-        system_prompt (str): The system prompt for the AI (default: "You are a helpful assistant.")
-        voice (str): The voice to use for speech (default: "coral")
-    """
-    messages = [{"role": "system", "content": system_prompt}]
-    
-    print("Starting interactive chat session. Type 'quit' to exit.")
-    print("System prompt:", system_prompt)
-    print("-" * 50)
-    
-    while True:
-        # Get user input
-        user_input = input("\nYou: ").strip()
-        
-        # Check if user wants to quit
-        if user_input.lower() in ['quit', 'exit', 'q']:
-            print("Ending chat session. Goodbye!")
-            break
-        
-        # Add user message to conversation history
-        messages.append({"role": "user", "content": user_input})
-        
-        try:
-            # Get AI response
-            response = chat_completion(messages)
-            print(f"\nAI: {response}")
-            
-            # Convert response to speech
-            speech_file = text_to_speech(
-                text=response,
-                voice=voice,
-                instructions="Speak in a natural and conversational tone."
-            )
-            print(f"Speech saved to: {speech_file}")
-            
-            # Add AI response to conversation history
-            messages.append({"role": "assistant", "content": response})
-            
-        except Exception as e:
-            print(f"An error occurred: {str(e)}")
-            continue
-
 def main():
-    """Example usage of asking a question and getting a spoken response."""
+    """Interactive voice conversation loop."""
+    print("Welcome to the Voice Assistant!")
+    print("Press 'Q' to quit at any time.")
+    print("Waiting for audio input...")
+    
+    # Initialize conversation history
+    conversation_history = []
+    system_prompt = "You are a helpful and friendly assistant. Keep your responses concise and natural."
+    
     try:
-        # Example question
-        question = "What is the meaning of life?"
-        
-        # Get response and convert to speech
-        response, speech_file = ask_and_speak(
-            question=question,
-            system_prompt="You are a wise philosopher who gives thoughtful but concise answers.",
-            voice="coral"
-        )
-        
-        print(f"\nQuestion: {question}")
-        print(f"Response: {response}")
-        print(f"Speech file generated at: {speech_file}")
-        
+        while True:
+            # Check if user wants to quit
+            user_input = input("\nPress Enter to record (or 'Q' to quit): ").strip().upper()
+            if user_input == 'Q':
+                print("Goodbye!")
+                break
+            
+            # Get audio file path from user
+            audio_path = input("Enter the path to your audio file: ").strip()
+            if not os.path.exists(audio_path):
+                print(f"Error: File not found at {audio_path}")
+                continue
+            
+            try:
+                # Transcribe the audio
+                print("Transcribing audio...")
+                question = speech_to_text(audio_path)
+                print(f"You said: {question}")
+                
+                # Add to conversation history
+                conversation_history.append({"role": "user", "content": question})
+                
+                # Get AI response and convert to speech
+                print("Getting AI response...")
+                response, speech_file = ask_and_speak(
+                    question=question,
+                    system_prompt=system_prompt,
+                    voice="coral"
+                )
+                
+                # Add AI response to conversation history
+                conversation_history.append({"role": "assistant", "content": response})
+                
+                print(f"\nResponse saved to: {speech_file}")
+                print("You can play this file to hear the response.")
+                
+            except Exception as e:
+                print(f"An error occurred: {str(e)}")
+                continue
+            
+    except KeyboardInterrupt:
+        print("\nGoodbye!")
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
+        print(f"An unexpected error occurred: {str(e)}")
 
 if __name__ == "__main__":
     main()
