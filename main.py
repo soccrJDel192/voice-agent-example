@@ -3,6 +3,9 @@ from openai import OpenAI
 from dotenv import load_dotenv
 import os
 import time
+import pyaudio
+import wave
+import keyboard
 
 # Load environment variables from .env file
 load_dotenv()
@@ -19,6 +22,58 @@ def initialize_openai_client():
 def get_speech_file_path(filename="speech.mp3"):
     """Get the path for the speech file in the same directory as the script."""
     return Path(__file__).parent / filename
+
+def record_audio(filename="input.wav", duration=5):
+    """
+    Record audio from the microphone and save it to a file.
+    
+    Args:
+        filename (str): Name of the output file
+        duration (int): Recording duration in seconds
+    
+    Returns:
+        str: Path to the recorded audio file
+    """
+    # Audio recording parameters
+    CHUNK = 1024
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 44100
+    
+    p = pyaudio.PyAudio()
+    
+    # Open stream
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
+    
+    print(f"Recording for {duration} seconds...")
+    frames = []
+    
+    # Record for the specified duration
+    for i in range(0, int(RATE / CHUNK * duration)):
+        data = stream.read(CHUNK)
+        frames.append(data)
+    
+    print("Recording finished")
+    
+    # Stop and close the stream
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+    
+    # Save the recorded data
+    output_path = get_speech_file_path(filename)
+    wf = wave.open(str(output_path), 'wb')
+    wf.setnchannels(CHANNELS)
+    wf.setsampwidth(p.get_sample_size(FORMAT))
+    wf.setframerate(RATE)
+    wf.writeframes(b''.join(frames))
+    wf.close()
+    
+    return str(output_path)
 
 def text_to_speech(text, voice="coral", instructions=None, output_file="speech.mp3"):
     """
@@ -121,7 +176,7 @@ def main():
     """Interactive voice conversation loop."""
     print("Welcome to the Voice Assistant!")
     print("Press 'Q' to quit at any time.")
-    print("Waiting for audio input...")
+    print("Press 'R' to start recording (5 seconds)")
     
     # Initialize conversation history
     conversation_history = []
@@ -130,18 +185,18 @@ def main():
     try:
         while True:
             # Check if user wants to quit
-            user_input = input("\nPress Enter to record (or 'Q' to quit): ").strip().upper()
+            user_input = input("\nPress 'R' to record or 'Q' to quit: ").strip().upper()
             if user_input == 'Q':
                 print("Goodbye!")
                 break
-            
-            # Get audio file path from user
-            audio_path = input("Enter the path to your audio file: ").strip()
-            if not os.path.exists(audio_path):
-                print(f"Error: File not found at {audio_path}")
+            elif user_input != 'R':
                 continue
             
             try:
+                # Record audio
+                print("\nStarting recording...")
+                audio_path = record_audio()
+                
                 # Transcribe the audio
                 print("Transcribing audio...")
                 question = speech_to_text(audio_path)
